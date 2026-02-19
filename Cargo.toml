@@ -1,0 +1,67 @@
+[package]
+name = "llmermaid"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Indexer + Planner + Interactive TUI for LLM-assisted monorepo development"
+license = "MIT"
+authors = ["Sveinbjörn"]
+keywords = ["llm", "monorepo", "mermaid", "tui", "architecture"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "llmermaid"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+# ratatui-image = "10"  # TODO: enable for Kitty TGP pixel-perfect diagrams
+
+# Mermaid rendering
+graphs-tui = "0.4"                # ASCII/Unicode mermaid rendering (pure Rust, zero deps)
+
+# File traversal
+walkdir = "2"
+ignore = "0.4"                    # Respects .gitignore
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Regex (mermaid extraction, scope inference)
+regex = "1"
+
+# Misc
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+once_cell = "1"
+unicode-width = "0.2"
+
+# HTTP client for Anthropic API (optional, behind `api` feature)
+reqwest = { version = "0.12", features = ["json", "blocking"], optional = true }
+
+# Image rendering for mermaid→PNG→kitty path (optional)
+image = { version = "0.25", optional = true, default-features = false, features = ["png"] }
+resvg = { version = "0.44", optional = true }
+
+[features]
+default = ["ascii-diagrams"]
+ascii-diagrams = []                # Always available: graphs-tui ASCII rendering
+pixel-diagrams = ["dep:image", "dep:resvg"]  # Optional: SVG→PNG→kitty TGP rendering
+api = ["dep:reqwest"]              # Optional: Anthropic API for `plan --call-api`
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+opt-level = "z"                    # Optimize for binary size
+
+[dev-dependencies]
+tempfile = "3.25.0"
