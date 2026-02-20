@@ -171,6 +171,9 @@ fn handoff_key_to_message(key: KeyEvent) -> Option<Message> {
         KeyCode::Down | KeyCode::Char('j') => Some(Message::ScrollHandoffDown),
         KeyCode::Home => Some(Message::ScrollHandoffHome),
         KeyCode::Char('x') => Some(Message::ExportPlan),
+        KeyCode::Char('a') => Some(Message::StartAgentPipeline),
+        KeyCode::Enter => Some(Message::ApproveGate),
+        KeyCode::Char('s') => Some(Message::SkipAgentStep),
         _ => None,
     }
 }
@@ -223,8 +226,9 @@ mod tests {
             diagram_edit_mode: false,
             diagram_edit_buffer: String::new(),
             lint_issues: Vec::new(),
-            agent_steps: Vec::new(),
-            active_agent_step: 0,
+            boundaries: Vec::new(),
+            edges: Vec::new(),
+            graph_executor: None,
             fuzzy_open: false,
             fuzzy_query: String::new(),
             fuzzy_results: Vec::new(),
@@ -491,5 +495,28 @@ mod tests {
         let app = test_app();
         let msg = key_to_message(make_ctrl_key('e'), &app);
         assert!(matches!(msg, Some(Message::OpenExternalEditor)));
+    }
+
+    #[test]
+    fn handoff_keys_map_correctly() {
+        let mut app = test_app();
+        app.current_view = View::Handoff;
+
+        assert!(matches!(
+            key_to_message(make_key(KeyCode::Char('a')), &app),
+            Some(Message::StartAgentPipeline)
+        ));
+        assert!(matches!(
+            key_to_message(make_key(KeyCode::Enter), &app),
+            Some(Message::ApproveGate)
+        ));
+        assert!(matches!(
+            key_to_message(make_key(KeyCode::Char('s')), &app),
+            Some(Message::SkipAgentStep)
+        ));
+        assert!(matches!(
+            key_to_message(make_key(KeyCode::Char('x')), &app),
+            Some(Message::ExportPlan)
+        ));
     }
 }

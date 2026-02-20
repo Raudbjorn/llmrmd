@@ -32,7 +32,15 @@ fn render_domains(frame: &mut Frame, area: Rect, app: &App) {
             let file_count = app.files.iter().filter(|f| f.domain == *domain).count();
             let diag_count = app.diagrams.iter().filter(|d| d.domain == *domain).count();
 
-            let mut line = format!("{domain}  ({file_count}");
+            // Show boundary type next to domain name when known
+            let boundary_suffix = app
+                .boundaries
+                .iter()
+                .find(|b| b.domain == *domain)
+                .map(|b| format!(" [{}]", b.boundary_type.as_str()))
+                .unwrap_or_default();
+
+            let mut line = format!("{domain}{boundary_suffix}  ({file_count}");
             if diag_count > 0 {
                 line.push_str(&format!(", {diag_count} diag"));
             }
@@ -265,15 +273,23 @@ fn render_diagram_summary(frame: &mut Frame, area: Rect, app: &App) {
         )));
     }
 
-    // Split the right panel: diagram list on top, token gauge at bottom (3 rows)
+    // Split the right panel: diagram list | boundary+edge info | token gauge
+    let has_boundaries = !app.boundaries.is_empty() || !app.edges.is_empty();
     let gauge_height: u16 = 3;
+    let boundary_height: u16 = if has_boundaries { 8 } else { 0 };
+
+    let mut constraints = vec![Constraint::Min(1)];
+    if has_boundaries {
+        constraints.push(Constraint::Length(boundary_height));
+    }
+    constraints.push(Constraint::Length(gauge_height));
+
     let right_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),
-            Constraint::Length(gauge_height),
-        ])
+        .constraints(constraints)
         .split(area);
+
+    let mut chunk_idx = 0;
 
     // Diagram list
     let diag_block = Block::default()
@@ -289,7 +305,14 @@ fn render_diagram_summary(frame: &mut Frame, area: Rect, app: &App) {
         .block(diag_block)
         .wrap(Wrap { trim: false });
 
-    frame.render_widget(paragraph, right_chunks[0]);
+    frame.render_widget(paragraph, right_chunks[chunk_idx]);
+    chunk_idx += 1;
+
+    // Boundary + edge info (conditional)
+    if has_boundaries {
+        render_boundary_edges(frame, right_chunks[chunk_idx], app);
+        chunk_idx += 1;
+    }
 
     // Token gauge at the bottom
     let gauge = TokenGauge::new(app.pinned_tokens, app.token_budget).block(
@@ -300,7 +323,60 @@ fn render_diagram_summary(frame: &mut Frame, area: Rect, app: &App) {
             .title_style(Style::default().fg(Color::Yellow)),
     );
 
-    frame.render_widget(gauge, right_chunks[1]);
+    frame.render_widget(gauge, right_chunks[chunk_idx]);
+}
+
+/// Render boundary types and cross-domain dependency edges.
+fn render_boundary_edges(frame: &mut Frame, area: Rect, app: &App) {
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    // Boundaries summary
+    if !app.boundaries.is_empty() {
+        for b in &app.boundaries {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("{}", b.domain),
+                    Style::default().fg(Color::Cyan),
+                ),
+                Span::styled(
+                    format!(" ({})", b.boundary_type.as_str()),
+                    Style::default().fg(Color::DarkGray),
+                ),
+            ]));
+        }
+    }
+
+    // Edges
+    if !app.edges.is_empty() {
+        if !lines.is_empty() {
+            lines.push(Line::from(""));
+        }
+        for e in &app.edges {
+            lines.push(Line::from(Span::styled(
+                format!(
+                    "{} -> {} ({})",
+                    e.source_domain, e.target_domain, e.dep_name
+                ),
+                Style::default().fg(Color::White),
+            )));
+        }
+    }
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .title(format!(
+            " Boundaries ({}) Edges ({}) ",
+            app.boundaries.len(),
+            app.edges.len()
+        ))
+        .title_style(Style::default().fg(Color::Magenta));
+
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .wrap(Wrap { trim: false });
+
+    frame.render_widget(paragraph, area);
 }
 
 /// Build a span list that highlights case-insensitive matches of `query` within `text`.

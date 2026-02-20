@@ -4,9 +4,9 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
+use crate::agent::executor::AgentStepStatus;
 use crate::planner;
 use crate::tui::app::App;
-use crate::tui::message::StepStatus;
 
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     match &app.planning_context {
@@ -35,12 +35,12 @@ fn render_context(
     app: &App,
     ctx: &crate::planner::types::PlannerContext,
 ) {
-    let has_pipeline = !app.agent_steps.is_empty();
+    let has_pipeline = app.graph_executor.is_some();
 
     let mut constraints = vec![Constraint::Length(5)]; // Summary
 
     if has_pipeline {
-        constraints.push(Constraint::Length(5)); // Agent pipeline
+        constraints.push(Constraint::Length(6)); // Agent pipeline (3 lines + border)
     }
 
     constraints.push(Constraint::Min(1));    // Prompt preview (flex)
@@ -110,42 +110,58 @@ fn render_summary(
 }
 
 /// Horizontal agent pipeline: [Step1] --> [Step2] --> [Step3]
-/// Color-coded by StepStatus.
+/// Color-coded by AgentStepStatus, driven by the real GraphExecutor.
 fn render_agent_pipeline(frame: &mut Frame, area: Rect, app: &App) {
+    let steps = app.agent_display_steps();
+    let (done, total) = app
+        .graph_executor
+        .as_ref()
+        .map(|e| e.progress())
+        .unwrap_or((0, 0));
+
     let mut spans: Vec<Span> = Vec::new();
     spans.push(Span::raw(" "));
 
-    for (i, step) in app.agent_steps.iter().enumerate() {
+    for (i, step) in steps.iter().enumerate() {
         if i > 0 {
             spans.push(Span::styled(" --> ", Style::default().fg(Color::DarkGray)));
         }
 
-        let (fg, modifier) = match step.status {
-            StepStatus::Pending => (Color::DarkGray, Modifier::empty()),
-            StepStatus::Active => (Color::Yellow, Modifier::BOLD),
-            StepStatus::Done => (Color::Green, Modifier::empty()),
-            StepStatus::Failed => (Color::Red, Modifier::BOLD),
+        let (fg, modifier) = match &step.status {
+            AgentStepStatus::Pending => (Color::DarkGray, Modifier::empty()),
+            AgentStepStatus::Active => (Color::Yellow, Modifier::BOLD),
+            AgentStepStatus::Completed => (Color::Green, Modifier::empty()),
+            AgentStepStatus::Failed(_) => (Color::Red, Modifier::BOLD),
         };
 
         let bracket_style = Style::default().fg(fg).add_modifier(modifier);
         let label_style = Style::default().fg(fg).add_modifier(modifier);
 
         spans.push(Span::styled("[", bracket_style));
-        spans.push(Span::styled(step.label.as_str(), label_style));
+        spans.push(Span::styled(step.label.clone(), label_style));
         spans.push(Span::styled("]", bracket_style));
     }
 
     let pipeline_line = Line::from(spans);
 
-    // Build a second line showing the active step's label prominently
-    let active_label = app
-        .agent_steps
+    // Build a second line: active step label or completion status + progress fraction
+    let active_label: String = steps
         .iter()
-        .find(|s| s.status == StepStatus::Active)
-        .map(|s| s.label.as_str())
-        .unwrap_or("");
+        .find(|s| s.status == AgentStepStatus::Active)
+        .map(|s| s.label.clone())
+        .unwrap_or_default();
 
-    let status_line = if !active_label.is_empty() {
+    let status_line = if app.has_pending_gate() {
+        Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                "Waiting for approval -- press Enter to approve, s to skip",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ])
+    } else if !active_label.is_empty() {
         Line::from(vec![
             Span::raw("  "),
             Span::styled("Active: ", Style::default().fg(Color::DarkGray)),
@@ -155,32 +171,49 @@ fn render_agent_pipeline(frame: &mut Frame, area: Rect, app: &App) {
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
             ),
+            Span::raw(format!("  ({done}/{total})")),
+        ])
+    } else if done == total && total > 0 {
+        Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                format!("All steps complete ({done}/{total})"),
+                Style::default().fg(Color::Green),
+            ),
         ])
     } else {
-        let all_done = app
-            .agent_steps
-            .iter()
-            .all(|s| s.status == StepStatus::Done);
-        if all_done && !app.agent_steps.is_empty() {
-            Line::from(vec![
-                Span::raw("  "),
-                Span::styled(
-                    "All steps complete",
-                    Style::default().fg(Color::Green),
-                ),
-            ])
-        } else {
-            Line::from("")
-        }
+        Line::from(format!("  ({done}/{total})"))
     };
 
-    let content = vec![pipeline_line, status_line];
+    // Third line: show truncated output from the most recently completed node
+    let last_output_line = app
+        .graph_executor
+        .as_ref()
+        .and_then(|e| {
+            e.state()
+                .node_states
+                .iter()
+                .rev()
+                .find(|s| s.output.is_some())
+                .and_then(|s| s.output.as_ref())
+                .map(|o| {
+                    let truncated = if o.len() > 80 {
+                        format!("  > {}...", &o[..77])
+                    } else {
+                        format!("  > {o}")
+                    };
+                    Line::from(Span::styled(truncated, Style::default().fg(Color::DarkGray)))
+                })
+        })
+        .unwrap_or_else(|| Line::from(""));
+
+    let content = vec![pipeline_line, status_line, last_output_line];
 
     let pipeline_widget = Paragraph::new(content).block(
         Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .title(" Agent Pipeline ")
+            .title(format!(" Agent Pipeline ({done}/{total}) "))
             .title_style(Style::default().fg(Color::Cyan)),
     );
 
@@ -214,8 +247,12 @@ fn render_action_bar(frame: &mut Frame, area: Rect) {
     let actions = Line::from(vec![
         Span::styled(" x ", Style::default().fg(Color::Black).bg(Color::Green)),
         Span::raw(" Export  "),
-        Span::styled(" 2 ", Style::default().fg(Color::Black).bg(Color::Yellow)),
-        Span::raw(" Back to Plan  "),
+        Span::styled(" a ", Style::default().fg(Color::Black).bg(Color::Cyan)),
+        Span::raw(" Start Pipeline  "),
+        Span::styled(" Enter ", Style::default().fg(Color::Black).bg(Color::Yellow)),
+        Span::raw(" Approve Gate  "),
+        Span::styled(" s ", Style::default().fg(Color::Black).bg(Color::DarkGray)),
+        Span::raw(" Skip  "),
         Span::styled(" j/k ", Style::default().fg(Color::Black).bg(Color::DarkGray)),
         Span::raw(" Scroll"),
     ]);

@@ -12,6 +12,7 @@
 //! (system overview, diagrams, conventions). Implementation needs depth (specific files,
 //! patterns, exact syntax). This separation avoids the "stuffed context" problem.
 
+pub mod agent;
 pub mod api;
 pub mod cli;
 pub mod config;

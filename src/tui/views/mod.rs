@@ -227,6 +227,9 @@ fn render_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
                 ("j/k or Up/Down", "Scroll prompt preview"),
                 ("Home", "Scroll to top"),
                 ("x", "Export to .claude/planner-context.md"),
+                ("a", "Start agent pipeline"),
+                ("Enter", "Approve gate"),
+                ("s", "Skip current step"),
             ],
         ),
     };

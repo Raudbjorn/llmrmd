@@ -3,6 +3,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use super::boundary::BoundaryRecord;
+use super::edges::EdgeRecord;
+
 /// A single file in the index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileRecord {
@@ -54,4 +57,10 @@ pub struct IndexResult {
     pub diagrams: Vec<DiagramRecord>,
     /// Paths to all CLAUDE.md files found.
     pub claude_md_paths: Vec<String>,
+    /// Detected project boundaries.
+    #[serde(default)]
+    pub boundaries: Vec<BoundaryRecord>,
+    /// Cross-domain dependency edges.
+    #[serde(default)]
+    pub edges: Vec<EdgeRecord>,
 }

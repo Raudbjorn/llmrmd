@@ -10,7 +10,11 @@ use std::sync::mpsc;
 
 use tracing::info;
 
+use crate::agent::executor::GraphExecutor;
+use crate::agent::{ExecutionGraph, NodeStatus};
 use crate::error::Result;
+use crate::indexer::boundary::BoundaryRecord;
+use crate::indexer::edges::EdgeRecord;
 use crate::indexer::types::{DiagramRecord, FileRecord};
 use crate::planner::types::{ManifestEntry, PlannerContext};
 use crate::planner;
@@ -162,11 +166,15 @@ pub struct App {
     /// Lint issues for the current diagram.
     pub lint_issues: Vec<LintIssue>,
 
-    // -- Agent visualizer (Feature 4) --
-    /// Agent execution pipeline steps.
-    pub agent_steps: Vec<AgentStep>,
-    /// Index of the currently active agent step.
-    pub active_agent_step: usize,
+    // -- Boundary/edge data --
+    /// Detected project boundaries.
+    pub boundaries: Vec<BoundaryRecord>,
+    /// Cross-domain dependency edges.
+    pub edges: Vec<EdgeRecord>,
+
+    // -- Agent DAG executor (Feature 4) --
+    /// The graph executor driving the agent pipeline.
+    pub graph_executor: Option<GraphExecutor>,
 
     // -- Fuzzy finder (Feature 5) --
     /// Whether the fuzzy finder overlay is open.
@@ -261,8 +269,9 @@ impl App {
             diagram_edit_mode: false,
             diagram_edit_buffer: String::new(),
             lint_issues: Vec::new(),
-            agent_steps: Vec::new(),
-            active_agent_step: 0,
+            boundaries: Vec::new(),
+            edges: Vec::new(),
+            graph_executor: None,
             fuzzy_open: false,
             fuzzy_query: String::new(),
             fuzzy_results: Vec::new(),
@@ -572,25 +581,62 @@ impl App {
                 self.handoff_scroll = 0;
             }
 
-            // -- Agent visualizer --
-            Message::SetAgentSteps(steps) => {
-                self.agent_steps = steps;
-                self.active_agent_step = 0;
+            // -- Agent DAG executor --
+            Message::StartAgentPipeline => {
+                let graph = ExecutionGraph::default_plan_graph();
+                let mut executor = GraphExecutor::new(graph);
+                executor.advance();
+                self.graph_executor = Some(executor);
+                self.status_message = "Agent pipeline started".to_string();
+                self.status_level = StatusLevel::Info;
             }
 
-            Message::AdvanceAgentStep => {
-                if self.active_agent_step < self.agent_steps.len() {
-                    if let Some(step) =
-                        self.agent_steps.get_mut(self.active_agent_step)
-                    {
-                        step.status = StepStatus::Done;
+            Message::ApproveGate => {
+                if let Some(ref mut executor) = self.graph_executor {
+                    // Find the WaitingForGate node and complete it
+                    let gate_id: Option<String> = executor
+                        .state()
+                        .node_states
+                        .iter()
+                        .find(|s| s.status == NodeStatus::WaitingForGate)
+                        .map(|s| s.node_id.clone());
+
+                    if let Some(id) = gate_id {
+                        executor.complete_node(&id, Some("Approved by user".to_string()));
+                        executor.advance();
+                        self.status_message = "Gate approved -- advancing pipeline".to_string();
+                        self.status_level = StatusLevel::Success;
                     }
-                    self.active_agent_step += 1;
-                    if let Some(step) =
-                        self.agent_steps.get_mut(self.active_agent_step)
-                    {
-                        step.status = StepStatus::Active;
+                }
+            }
+
+            Message::SkipAgentStep => {
+                if let Some(ref mut executor) = self.graph_executor {
+                    if let Some(current_id) = executor.state().current_node.clone() {
+                        executor.skip_node(&current_id);
+                        executor.advance();
+                        self.status_message = format!("Skipped: {current_id}");
+                        self.status_level = StatusLevel::Warning;
                     }
+                }
+            }
+
+            Message::AgentStepComplete { node_id, output } => {
+                if let Some(ref mut executor) = self.graph_executor {
+                    executor.complete_node(&node_id, output);
+                    executor.advance();
+                    let (done, total) = executor.progress();
+                    self.status_message = format!("Step complete: {node_id} ({done}/{total})");
+                    self.status_level = StatusLevel::Success;
+                }
+            }
+
+            Message::AgentStepFailed { node_id, error } => {
+                if let Some(ref mut executor) = self.graph_executor {
+                    executor.fail_node(&node_id, error.clone());
+                    executor.advance();
+                    self.status_message = format!("Step failed: {node_id}: {error}");
+                    self.status_level = StatusLevel::Error;
                 }
             }
 
@@ -626,6 +672,8 @@ impl App {
                                     }
                                     ds.len()
                                 },
+                                boundaries: result.boundaries.len(),
+                                edges: result.edges.len(),
                             };
                             // Write index artifacts to disk; on failure,
                             // report via IndexComplete(Err(..)).
@@ -671,9 +719,23 @@ impl App {
                                 return Ok(false);
                             }
                         }
+                        // Load boundaries/edges from disk
+                        let out = crate::config::output_dir(&self.root);
+                        if let Ok(data) = std::fs::read_to_string(out.join("boundaries.json")) {
+                            if let Ok(b) = serde_json::from_str(&data) {
+                                self.boundaries = b;
+                            }
+                        }
+                        if let Ok(data) = std::fs::read_to_string(out.join("edges.json")) {
+                            if let Ok(e) = serde_json::from_str(&data) {
+                                self.edges = e;
+                            }
+                        }
+
                         self.status_message = format!(
-                            "Indexed: {} files, {} diagrams, {} domains",
-                            stats.files, stats.diagrams, stats.domains
+                            "Indexed: {} files, {} diagrams, {} domains, {} boundaries, {} edges",
+                            stats.files, stats.diagrams, stats.domains,
+                            stats.boundaries, stats.edges
                         );
                         self.status_level = StatusLevel::Success;
                     }
@@ -846,6 +908,27 @@ impl App {
         } else {
             self.files.iter().collect()
         }
+    }
+
+    /// Get the agent steps for TUI display, delegating to the graph executor.
+    pub fn agent_display_steps(&self) -> Vec<crate::agent::executor::AgentStep> {
+        self.graph_executor
+            .as_ref()
+            .map(|e| e.to_agent_steps())
+            .unwrap_or_default()
+    }
+
+    /// Whether the executor has a node waiting for user gate approval.
+    pub fn has_pending_gate(&self) -> bool {
+        self.graph_executor
+            .as_ref()
+            .map(|e| {
+                e.state()
+                    .node_states
+                    .iter()
+                    .any(|s| s.status == NodeStatus::WaitingForGate)
+            })
+            .unwrap_or(false)
     }
 
     // -----------------------------------------------------------------------
@@ -1193,8 +1276,9 @@ mod tests {
             diagram_edit_mode: false,
             diagram_edit_buffer: String::new(),
             lint_issues: Vec::new(),
-            agent_steps: Vec::new(),
-            active_agent_step: 0,
+            boundaries: Vec::new(),
+            edges: Vec::new(),
+            graph_executor: None,
             fuzzy_open: false,
             fuzzy_query: String::new(),
             fuzzy_results: Vec::new(),
@@ -1256,6 +1340,8 @@ mod tests {
             files: 42,
             diagrams: 3,
             domains: 5,
+            boundaries: 2,
+            edges: 1,
         };
         let quit = app.update(Message::IndexComplete(Ok(stats))).unwrap();
         assert!(!quit);
@@ -1282,5 +1368,101 @@ mod tests {
         assert!(!app.is_busy);
         assert!(app.status_message.contains("boom"));
         assert_eq!(app.status_level, StatusLevel::Error);
+    }
+
+    #[test]
+    fn start_agent_pipeline_creates_executor() {
+        let mut app = test_app();
+        assert!(app.graph_executor.is_none());
+
+        app.update(Message::StartAgentPipeline).unwrap();
+        assert!(app.graph_executor.is_some());
+        assert!(app.status_message.contains("pipeline started"));
+
+        // The first node should be running after advance
+        let steps = app.agent_display_steps();
+        assert_eq!(steps.len(), 5);
+        assert_eq!(steps[0].status, crate::agent::executor::AgentStepStatus::Active);
+    }
+
+    #[test]
+    fn approve_gate_advances_pipeline() {
+        let mut app = test_app();
+        app.update(Message::StartAgentPipeline).unwrap();
+
+        // Advance through: generate_ir, validate_syntax, check_consistency -> gate
+        let exec = app.graph_executor.as_mut().unwrap();
+        exec.complete_node("generate_ir", None);
+        exec.advance();
+        exec.complete_node("validate_syntax", None);
+        exec.advance();
+        exec.complete_node("check_consistency", None);
+        exec.advance(); // gate -> WaitingForGate
+
+        assert!(app.has_pending_gate());
+
+        // Approve the gate
+        app.update(Message::ApproveGate).unwrap();
+        assert!(!app.has_pending_gate());
+        assert!(app.status_message.contains("Gate approved"));
+    }
+
+    #[test]
+    fn skip_agent_step_skips_current() {
+        let mut app = test_app();
+        app.update(Message::StartAgentPipeline).unwrap();
+
+        // Skip the first running node
+        app.update(Message::SkipAgentStep).unwrap();
+        assert!(app.status_message.contains("Skipped"));
+
+        let steps = app.agent_display_steps();
+        // First node should be completed (skipped counts as completed in display)
+        assert_eq!(steps[0].status, crate::agent::executor::AgentStepStatus::Completed);
+    }
+
+    #[test]
+    fn agent_step_complete_advances() {
+        let mut app = test_app();
+        app.update(Message::StartAgentPipeline).unwrap();
+
+        app.update(Message::AgentStepComplete {
+            node_id: "generate_ir".to_string(),
+            output: Some("test output".to_string()),
+        }).unwrap();
+
+        let (done, _total) = app.graph_executor.as_ref().unwrap().progress();
+        assert!(done >= 1);
+        assert!(app.status_message.contains("Step complete"));
+    }
+
+    #[test]
+    fn agent_step_failed_propagates() {
+        let mut app = test_app();
+        app.update(Message::StartAgentPipeline).unwrap();
+
+        app.update(Message::AgentStepFailed {
+            node_id: "generate_ir".to_string(),
+            error: "LLM timeout".to_string(),
+        }).unwrap();
+
+        assert!(app.status_message.contains("Step failed"));
+        assert!(app.status_message.contains("LLM timeout"));
+
+        // All downstream should be skipped
+        let exec = app.graph_executor.as_ref().unwrap();
+        assert!(exec.is_complete());
+    }
+
+    #[test]
+    fn has_pending_gate_returns_false_without_executor() {
+        let app = test_app();
+        assert!(!app.has_pending_gate());
+    }
+
+    #[test]
+    fn agent_display_steps_empty_without_executor() {
+        let app = test_app();
+        assert!(app.agent_display_steps().is_empty());
     }
 }

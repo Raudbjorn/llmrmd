@@ -5,7 +5,9 @@
 //! - `manifest.toon` / `.json` — diagram inventory
 //! - `diagrams/extracted/*.mmd` — extracted mermaid diagrams
 
+pub mod boundary;
 pub mod description;
+pub mod edges;
 pub mod mermaid;
 pub mod repair;
 pub mod toon;
@@ -298,6 +300,17 @@ pub fn scan_repo(root: &Path) -> Result<IndexResult> {
         .unwrap_or("unknown")
         .to_string();
 
+    // Detect project boundaries and cross-domain edges
+    let boundaries = boundary::detect_boundaries(&root);
+    let domain_names: HashSet<String> = files.iter().map(|f| f.domain.clone()).collect();
+    let dep_edges = edges::extract_edges(&root, &boundaries, &domain_names);
+
+    info!(
+        boundaries = boundaries.len(),
+        edges = dep_edges.len(),
+        "Boundary/edge detection complete"
+    );
+
     Ok(IndexResult {
         root: root.clone(),
         generated_at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
@@ -305,6 +318,8 @@ pub fn scan_repo(root: &Path) -> Result<IndexResult> {
         files,
         diagrams,
         claude_md_paths,
+        boundaries,
+        edges: dep_edges,
     })
 }
 
@@ -315,10 +330,14 @@ pub fn write_index(result: &IndexResult, dry_run: bool) -> Result<()> {
     if dry_run {
         let toon_str = render_full_toon(result);
         let manifest_str = render_manifest_toon(result);
-        print!("{toon_str}\n\n{manifest_str}");
+        let boundary_str = render_boundary_toon(result);
+        let edge_str = render_edge_toon(result);
+        print!("{toon_str}\n\n{manifest_str}\n\n{boundary_str}\n\n{edge_str}");
         info!(
             files = result.files.len(),
             diagrams = result.diagrams.len(),
+            boundaries = result.boundaries.len(),
+            edges = result.edges.len(),
             "Dry run complete"
         );
         return Ok(());
@@ -394,6 +413,36 @@ pub fn write_index(result: &IndexResult, dry_run: bool) -> Result<()> {
         let semantic_index = crate::graphrag::index::build_index(&manifest_entries);
         crate::graphrag::index::write_index(&result.root, &semantic_index)?;
     }
+
+    // boundaries.toon
+    let boundary_str = render_boundary_toon(result);
+    let boundary_toon_path = out.join("boundaries.toon");
+    std::fs::write(&boundary_toon_path, &boundary_str)
+        .map_err(|e| error::io_err(&boundary_toon_path, e))?;
+    info!(path = %boundary_toon_path.display(), "Wrote boundaries.toon");
+
+    // boundaries.json
+    let boundary_json = serde_json::to_string_pretty(&result.boundaries)
+        .map_err(|e| Error::Json { path: out.join("boundaries.json"), source: e })?;
+    let boundary_json_path = out.join("boundaries.json");
+    std::fs::write(&boundary_json_path, &boundary_json)
+        .map_err(|e| error::io_err(&boundary_json_path, e))?;
+    info!(path = %boundary_json_path.display(), "Wrote boundaries.json");
+
+    // edges.toon
+    let edge_str = render_edge_toon(result);
+    let edge_toon_path = out.join("edges.toon");
+    std::fs::write(&edge_toon_path, &edge_str)
+        .map_err(|e| error::io_err(&edge_toon_path, e))?;
+    info!(path = %edge_toon_path.display(), "Wrote edges.toon");
+
+    // edges.json
+    let edge_json = serde_json::to_string_pretty(&result.edges)
+        .map_err(|e| Error::Json { path: out.join("edges.json"), source: e })?;
+    let edge_json_path = out.join("edges.json");
+    std::fs::write(&edge_json_path, &edge_json)
+        .map_err(|e| error::io_err(&edge_json_path, e))?;
+    info!(path = %edge_json_path.display(), "Wrote edges.json");
 
     // diagrams/extracted/*.mmd
     if !result.diagrams.is_empty() {
@@ -474,6 +523,65 @@ fn render_full_toon(result: &IndexResult) -> String {
     ));
 
     sections.join("\n\n") + "\n"
+}
+
+fn render_boundary_toon(result: &IndexResult) -> String {
+    if result.boundaries.is_empty() {
+        return "# No project boundaries detected.\n".to_string();
+    }
+
+    let sentinel_strs: Vec<String> = result
+        .boundaries
+        .iter()
+        .map(|b| b.sentinel_files.join("; "))
+        .collect();
+
+    let rows: Vec<Vec<&str>> = result
+        .boundaries
+        .iter()
+        .zip(sentinel_strs.iter())
+        .map(|(b, s)| {
+            vec![
+                b.domain.as_str(),
+                b.boundary_type.as_str(),
+                b.root_path.as_str(),
+                s.as_str(),
+            ]
+        })
+        .collect();
+
+    toon::render_tabular(
+        "boundaries",
+        &["domain", "type", "root_path", "sentinels"],
+        &rows,
+        Some("PROJECT BOUNDARIES"),
+    )
+}
+
+fn render_edge_toon(result: &IndexResult) -> String {
+    if result.edges.is_empty() {
+        return "# No cross-domain dependency edges detected.\n".to_string();
+    }
+
+    let rows: Vec<Vec<&str>> = result
+        .edges
+        .iter()
+        .map(|e| {
+            vec![
+                e.source_domain.as_str(),
+                e.target_domain.as_str(),
+                e.dep_type.as_str(),
+                e.dep_name.as_str(),
+            ]
+        })
+        .collect();
+
+    toon::render_tabular(
+        "edges",
+        &["source", "target", "dep_type", "dep_name"],
+        &rows,
+        Some("CROSS-DOMAIN DEPENDENCY EDGES"),
+    )
 }
 
 fn render_manifest_toon(result: &IndexResult) -> String {
@@ -729,6 +837,8 @@ mod tests {
             }],
             diagrams: Vec::new(),
             claude_md_paths: Vec::new(),
+            boundaries: Vec::new(),
+            edges: Vec::new(),
         };
 
         let toon = render_full_toon(&result);

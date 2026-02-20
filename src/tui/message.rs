@@ -27,22 +27,6 @@ pub struct LintIssue {
     pub message: String,
 }
 
-/// Status of an agent execution step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StepStatus {
-    Pending,
-    Active,
-    Done,
-    Failed,
-}
-
-/// A step in the agent execution pipeline.
-#[derive(Debug, Clone)]
-pub struct AgentStep {
-    pub label: String,
-    pub status: StepStatus,
-}
-
 /// A fuzzy search result for the structural fuzzy finder.
 #[derive(Debug, Clone)]
 pub struct FuzzyResult {
@@ -170,11 +154,17 @@ pub enum Message {
     /// Reset handoff scroll to top.
     ScrollHandoffHome,
 
-    // -- Agent visualizer (Feature 4) --
-    /// Set the agent execution steps.
-    SetAgentSteps(Vec<AgentStep>),
-    /// Advance to the next agent step.
-    AdvanceAgentStep,
+    // -- Agent DAG executor --
+    /// Create a GraphExecutor with default_plan_graph and start the pipeline.
+    StartAgentPipeline,
+    /// Approve the current WaitingForGate node.
+    ApproveGate,
+    /// Skip the current node.
+    SkipAgentStep,
+    /// A step completed successfully.
+    AgentStepComplete { node_id: String, output: Option<String> },
+    /// A step failed.
+    AgentStepFailed { node_id: String, error: String },
 
     // -- Operations --
     /// Trigger the filesystem indexer.
@@ -239,6 +229,8 @@ pub struct IndexStats {
     pub files: usize,
     pub diagrams: usize,
     pub domains: usize,
+    pub boundaries: usize,
+    pub edges: usize,
 }
 
 /// Severity level for status bar messages.
