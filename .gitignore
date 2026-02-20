@@ -1,2 +1,41 @@
-/target
-original-code
+# Build artifacts
+/target/
+**/*.rs.bk
+
+# Cargo lock is committed for binaries, but ignore for libraries
+# (this is a binary, so Cargo.lock IS committed)
+
+# Editor/IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Coverage and profiling
+*.profraw
+*.profdata
+lcov.info
+tarpaulin-report.html
+coverage/
+
+# Debug artifacts
+*.dSYM/
+*.pdb
+
+# Generated index artifacts (produced by `llmermaid index`)
+# Uncomment the line below if you don't want to track these in git:
+# .claude/
+
+# Original code archive (development artifact)
+original-code/
