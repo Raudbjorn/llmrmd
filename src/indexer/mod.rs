@@ -5,7 +5,9 @@
 //! - `manifest.toon` / `.json` — diagram inventory
 //! - `diagrams/extracted/*.mmd` — extracted mermaid diagrams
 
+pub mod description;
 pub mod mermaid;
+pub mod repair;
 pub mod toon;
 pub mod types;
 
@@ -256,6 +258,11 @@ pub fn scan_repo(root: &Path) -> Result<IndexResult> {
                 posix_path.clone()
             };
 
+            // Repair pass: fix common syntax issues after minification
+            let repair_result = repair::repair(&minified);
+            repair::log_repair_results(&source, &repair_result);
+            let content = repair_result.content;
+
             let id = raw.id.unwrap_or_else(|| {
                 // Auto-generate ID from source path
                 source
@@ -264,13 +271,17 @@ pub fn scan_repo(root: &Path) -> Result<IndexResult> {
                     .to_string()
             });
 
+            let diagram_type = mermaid::infer_type(&content).to_string();
+            let desc = description::describe(&content, &diagram_type, &domain);
+
             diagrams.push(DiagramRecord {
                 id,
                 source,
                 domain: domain.clone(),
-                diagram_type: mermaid::infer_type(&minified).to_string(),
-                tokens_est: mermaid::estimate_tokens(&minified),
-                content: minified,
+                diagram_type,
+                tokens_est: mermaid::estimate_tokens(&content),
+                content,
+                description: desc,
             });
         }
     }
@@ -343,19 +354,46 @@ pub fn write_index(result: &IndexResult, dry_run: bool) -> Result<()> {
     // manifest.json
     let manifest_json = serde_json::json!({
         "generated_at": result.generated_at,
-        "diagrams": result.diagrams.iter().map(|d| serde_json::json!({
-            "id": d.id,
-            "source": d.source,
-            "domain": d.domain,
-            "type": d.diagram_type,
-            "tokens_est": d.tokens_est,
-        })).collect::<Vec<_>>(),
+        "diagrams": result.diagrams.iter().map(|d| {
+            let mut entry = serde_json::json!({
+                "id": d.id,
+                "source": d.source,
+                "domain": d.domain,
+                "type": d.diagram_type,
+                "tokens_est": d.tokens_est,
+            });
+            if !d.description.is_empty() {
+                entry.as_object_mut().unwrap().insert(
+                    "description".to_string(),
+                    serde_json::Value::String(d.description.clone()),
+                );
+            }
+            entry
+        }).collect::<Vec<_>>(),
     });
     let mj_path = out.join("manifest.json");
     let mj_str = serde_json::to_string_pretty(&manifest_json)
         .map_err(|e| Error::Json { path: mj_path.clone(), source: e })?;
     std::fs::write(&mj_path, &mj_str).map_err(|e| error::io_err(&mj_path, e))?;
     info!(path = %mj_path.display(), "Wrote manifest.json");
+
+    // semantic-index.json (GraphRAG)
+    if !result.diagrams.is_empty() {
+        let manifest_entries: Vec<crate::planner::types::ManifestEntry> = result
+            .diagrams
+            .iter()
+            .map(|d| crate::planner::types::ManifestEntry {
+                id: d.id.clone(),
+                source: d.source.clone(),
+                scope: d.domain.clone(),
+                diagram_type: d.diagram_type.clone(),
+                tokens_est: d.tokens_est,
+                description: d.description.clone(),
+            })
+            .collect();
+        let semantic_index = crate::graphrag::index::build_index(&manifest_entries);
+        crate::graphrag::index::write_index(&result.root, &semantic_index)?;
+    }
 
     // diagrams/extracted/*.mmd
     if !result.diagrams.is_empty() {
@@ -452,24 +490,33 @@ fn render_manifest_toon(result: &IndexResult) -> String {
     }
 
     let tokens_strs: Vec<String> = result.diagrams.iter().map(|d| d.tokens_est.to_string()).collect();
+    let desc_strs: Vec<String> = result.diagrams.iter().map(|d| {
+        if d.description.len() > 80 {
+            format!("{}...", &d.description[..77])
+        } else {
+            d.description.clone()
+        }
+    }).collect();
     let rows: Vec<Vec<&str>> = result
         .diagrams
         .iter()
         .zip(tokens_strs.iter())
-        .map(|(d, t)| {
+        .zip(desc_strs.iter())
+        .map(|((d, t), desc)| {
             vec![
                 d.id.as_str(),
                 d.source.as_str(),
                 d.domain.as_str(),
                 d.diagram_type.as_str(),
                 t.as_str(),
+                desc.as_str(),
             ]
         })
         .collect();
 
     sections.push(toon::render_tabular(
         "diagrams",
-        &["id", "source", "domain", "type", "tokens"],
+        &["id", "source", "domain", "type", "tokens", "description"],
         &rows,
         Some("AVAILABLE DIAGRAMS (load selectively based on task scope)"),
     ));

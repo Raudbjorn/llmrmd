@@ -118,6 +118,7 @@ mod tests {
                     scope: "supabase".to_string(),
                     diagram_type: "erDiagram".to_string(),
                     tokens_est: 100,
+                    description: String::new(),
                 },
                 "erDiagram\n  User".to_string(),
             )],

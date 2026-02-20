@@ -10,6 +10,9 @@ pub struct ManifestEntry {
     pub scope: String,
     pub diagram_type: String,
     pub tokens_est: usize,
+    /// Natural language description for semantic search.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
 }
 
 /// All the context assembled for a planning session.

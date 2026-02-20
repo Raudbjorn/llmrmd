@@ -1,7 +1,9 @@
 //! Planner: Assembles minimal context from indexer artifacts for LLM planning.
 
+pub mod injection;
 pub mod plans;
 pub mod scope;
+pub mod tags;
 pub mod types;
 
 use std::path::Path;
@@ -11,6 +13,7 @@ use tracing::{info, warn};
 use crate::config::{output_dir, CHARS_PER_TOKEN, DEFAULT_TOKEN_BUDGET};
 use crate::error::{self, Error, Result};
 use crate::indexer::toon;
+use tags::{wrap_tagged, DiagramTag, TagMetadata};
 use types::*;
 
 // ---------------------------------------------------------------------------
@@ -44,6 +47,10 @@ pub fn load_manifest(root: &Path) -> Result<Vec<ManifestEntry>> {
                         scope: d.get("domain").or_else(|| d.get("scope"))?.as_str()?.to_string(),
                         diagram_type: d.get("type")?.as_str()?.to_string(),
                         tokens_est: d.get("tokens_est")?.as_u64()? as usize,
+                        description: d.get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
                     })
                 })
                 .collect()
@@ -270,6 +277,9 @@ pub fn select_context_with_scopes(
 pub const PLANNER_SYSTEM_PROMPT: &str = include_str!("planner_prompt.txt");
 
 /// Render the complete planning prompt ready for an LLM.
+///
+/// Diagrams are wrapped in semantic XML tags to help LLMs distinguish
+/// diagram content from instructions and verify structural relationships.
 pub fn render_planning_prompt(ctx: &PlannerContext) -> String {
     let mut sections = Vec::new();
 
@@ -278,17 +288,34 @@ pub fn render_planning_prompt(ctx: &PlannerContext) -> String {
 
     if !ctx.system_diagram.is_empty() {
         sections.push("## System Architecture (current state)\n".to_string());
-        sections.push(format!("```mermaid\n{}\n```\n", ctx.system_diagram));
+        let meta = TagMetadata {
+            scope: "root".to_string(),
+            source: String::new(),
+            tokens: ctx.system_diagram.len() / CHARS_PER_TOKEN,
+        };
+        sections.push(wrap_tagged(
+            &ctx.system_diagram,
+            DiagramTag::SystemArchitecture,
+            &meta,
+        ));
+        sections.push(String::new());
     }
 
     if !ctx.selected_diagrams.is_empty() {
         sections.push("## Component Diagrams (current state)\n".to_string());
         for (entry, content) in &ctx.selected_diagrams {
+            let tag = DiagramTag::from_diagram(&entry.diagram_type, &entry.scope);
+            let meta = TagMetadata {
+                scope: entry.scope.clone(),
+                source: entry.source.clone(),
+                tokens: entry.tokens_est,
+            };
             sections.push(format!(
                 "### {} ({}, ~{} tokens)\n",
                 entry.source, entry.diagram_type, entry.tokens_est
             ));
-            sections.push(format!("```mermaid\n{content}\n```\n"));
+            sections.push(wrap_tagged(content, tag, &meta));
+            sections.push(String::new());
         }
     }
 
@@ -375,6 +402,7 @@ mod tests {
                 scope: "root".to_string(),
                 diagram_type: "flowchart".to_string(),
                 tokens_est: 50,
+                description: String::new(),
             },
             ManifestEntry {
                 id: "web-flow".to_string(),
@@ -382,6 +410,7 @@ mod tests {
                 scope: "web".to_string(),
                 diagram_type: "flowchart".to_string(),
                 tokens_est: 80,
+                description: String::new(),
             },
         ]
     }
@@ -438,6 +467,7 @@ mod tests {
                     scope: "web".to_string(),
                     diagram_type: "flowchart".to_string(),
                     tokens_est: 50,
+                    description: String::new(),
                 },
                 "flowchart LR\n  C-->D".to_string(),
             )],
@@ -454,6 +484,11 @@ mod tests {
         assert!(prompt.contains("Relevant Files"));
         assert!(prompt.contains("Change Request"));
         assert!(prompt.contains("Add a locations table"));
+        // Verify semantic XML tags are present
+        assert!(prompt.contains("<system_architecture_diagram"));
+        assert!(prompt.contains("</system_architecture_diagram>"));
+        assert!(prompt.contains("<container_architecture_diagram"));
+        assert!(prompt.contains("</container_architecture_diagram>"));
     }
 
     #[test]

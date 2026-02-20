@@ -209,6 +209,7 @@ mod tests {
                 scope: "root".to_string(),
                 diagram_type: "flowchart".to_string(),
                 tokens_est: 50,
+                description: String::new(),
             },
             ManifestEntry {
                 id: "web-flow".to_string(),
@@ -216,6 +217,7 @@ mod tests {
                 scope: "web".to_string(),
                 diagram_type: "flowchart".to_string(),
                 tokens_est: 80,
+                description: String::new(),
             },
         ]
     }

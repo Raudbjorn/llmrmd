@@ -15,7 +15,14 @@
 pub mod api;
 pub mod cli;
 pub mod config;
+pub mod editor_sync;
 pub mod error;
+pub mod git_graph;
+pub mod graphrag;
+pub mod hooks;
 pub mod indexer;
 pub mod planner;
+pub mod plugins;
+pub mod search;
+pub mod settings;
 pub mod tui;

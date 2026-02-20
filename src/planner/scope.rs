@@ -86,12 +86,35 @@ pub fn infer_scopes(
         }
     }
 
+    // Description-enhanced scope inference: scan diagram descriptions for query term overlap.
+    // If >30% of query terms appear in a description, add that diagram's scope.
+    let desc_words: Vec<String> = desc_lower
+        .split_whitespace()
+        .filter(|w| w.len() >= 2)
+        .map(|w| w.to_string())
+        .collect();
+
+    if !desc_words.is_empty() {
+        for entry in manifest {
+            if entry.description.is_empty() || matched.contains(&entry.scope) {
+                continue;
+            }
+            let desc_text = entry.description.to_lowercase();
+            let overlap = desc_words.iter().filter(|w| desc_text.contains(w.as_str())).count();
+            let ratio = overlap as f32 / desc_words.len() as f32;
+            if ratio > 0.3 && all_domains.contains(&entry.scope) {
+                matched.push(entry.scope.clone());
+            }
+        }
+    }
+
     if matched.is_empty() {
         info!("No specific scopes matched — using root-level context only");
         matched.push("root".to_string());
     }
 
     matched.sort();
+    matched.dedup();
     info!(scopes = ?matched, "Inferred scopes for planning");
     matched
 }
@@ -122,6 +145,7 @@ mod tests {
                 scope: s.to_string(),
                 diagram_type: "flowchart".to_string(),
                 tokens_est: 100,
+                description: String::new(),
             })
             .collect()
     }
@@ -209,5 +233,39 @@ mod tests {
         let mut sorted = scopes.clone();
         sorted.sort();
         assert_eq!(scopes, sorted);
+    }
+
+    #[test]
+    fn description_based_scope_inference() {
+        let files = make_files(&["web", "payments"]);
+        let manifest = vec![ManifestEntry {
+            id: "payment-flow".to_string(),
+            source: "payments/flow.mmd".to_string(),
+            scope: "payments".to_string(),
+            diagram_type: "sequence".to_string(),
+            tokens_est: 100,
+            description: "Sequence diagram showing payment processing between user gateway and stripe".to_string(),
+        }];
+
+        // "how is payment processed" has >30% overlap with the description
+        let scopes = infer_scopes("how is payment processed", &manifest, &files);
+        assert!(scopes.contains(&"payments".to_string()));
+    }
+
+    #[test]
+    fn description_low_overlap_no_match() {
+        let files = make_files(&["web", "payments"]);
+        let manifest = vec![ManifestEntry {
+            id: "payment-flow".to_string(),
+            source: "payments/flow.mmd".to_string(),
+            scope: "payments".to_string(),
+            diagram_type: "sequence".to_string(),
+            tokens_est: 100,
+            description: "Sequence diagram showing payment processing between user gateway and stripe".to_string(),
+        }];
+
+        // Only 1 word out of many matches — below 30% threshold
+        let scopes = infer_scopes("completely unrelated topic about weather forecasts", &manifest, &files);
+        assert!(!scopes.contains(&"payments".to_string()));
     }
 }

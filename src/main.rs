@@ -46,6 +46,45 @@ enum Command {
         dry_run: bool,
     },
 
+    /// Install a Git pre-commit hook that regenerates diagrams on changes.
+    InitHook {
+        /// Overwrite existing pre-commit hook if present.
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Sync diagrams to IDE context files (.cursorrules, etc.).
+    SyncEditor {
+        /// Target format: cursor, windsurf, or generic.
+        #[arg(long, default_value = "cursor")]
+        target: String,
+
+        /// Only include diagrams from these scopes (comma-separated).
+        #[arg(long)]
+        scopes: Option<String>,
+    },
+
+    /// Generate a Mermaid gitGraph diagram from git history.
+    GitGraph {
+        /// Number of recent commits to include (default: 50).
+        #[arg(long, default_value = "50")]
+        limit: usize,
+
+        /// Output file (default: .claude/diagrams/extracted/git-history.mmd).
+        #[arg(long)]
+        output: Option<String>,
+    },
+
+    /// Search diagrams and file index by natural language query.
+    Search {
+        /// Natural language query.
+        query: String,
+
+        /// Maximum results to return.
+        #[arg(long, default_value = "10")]
+        limit: usize,
+    },
+
     /// Assemble minimal planning context for a proposed change.
     Plan {
         /// Natural-language description of the proposed change.
@@ -137,6 +176,10 @@ fn main() -> ExitCode {
 
     let result = match cli.command {
         Some(Command::Index { dry_run }) => run_index(&root, dry_run),
+        Some(Command::InitHook { force }) => run_init_hook(&root, force),
+        Some(Command::SyncEditor { target, scopes }) => run_sync_editor(&root, &target, scopes),
+        Some(Command::GitGraph { limit, output }) => run_git_graph(&root, limit, output),
+        Some(Command::Search { query, limit }) => run_search(&root, &query, limit),
         Some(Command::Plan {
             change,
             budget,
@@ -202,6 +245,49 @@ fn run_index(root: &std::path::Path, dry_run: bool) -> llmermaid::error::Result<
     }
 
     llmermaid::indexer::write_index(&result, dry_run)?;
+    Ok(())
+}
+
+fn run_init_hook(root: &std::path::Path, force: bool) -> llmermaid::error::Result<()> {
+    llmermaid::hooks::install_pre_commit(root, force)?;
+    println!("Pre-commit hook installed.");
+    Ok(())
+}
+
+fn run_sync_editor(
+    root: &std::path::Path,
+    target: &str,
+    scopes: Option<String>,
+) -> llmermaid::error::Result<()> {
+    let editor_target = llmermaid::editor_sync::EditorTarget::parse(target);
+    let scope_list: Option<Vec<String>> = scopes.map(|s| {
+        s.split(',')
+            .map(|scope| scope.trim().to_string())
+            .filter(|scope| !scope.is_empty())
+            .collect()
+    });
+
+    llmermaid::editor_sync::sync(root, &editor_target, scope_list.as_deref())?;
+    println!("Editor context synced to {}", editor_target.filename());
+    Ok(())
+}
+
+fn run_git_graph(
+    root: &std::path::Path,
+    limit: usize,
+    output: Option<String>,
+) -> llmermaid::error::Result<()> {
+    llmermaid::git_graph::write_git_graph(root, limit, output.as_deref())?;
+    Ok(())
+}
+
+fn run_search(
+    root: &std::path::Path,
+    query: &str,
+    limit: usize,
+) -> llmermaid::error::Result<()> {
+    let results = llmermaid::search::search_index(root, query, limit)?;
+    print!("{}", llmermaid::search::format_results(&results));
     Ok(())
 }
 

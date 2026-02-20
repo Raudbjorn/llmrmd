@@ -33,6 +33,9 @@ pub struct DiagramRecord {
     pub tokens_est: usize,
     /// The minified mermaid source content.
     pub content: String,
+    /// Natural language description for semantic search.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
 }
 
 /// Complete result of an indexing run.
