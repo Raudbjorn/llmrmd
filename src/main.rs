@@ -5,6 +5,8 @@
 //! - `plan`   — assemble planning context for a proposed change
 //! - (default) — launch interactive TUI
 
+mod startup;
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -29,6 +31,10 @@ struct Cli {
     /// Enable verbose (debug) logging.
     #[arg(short, long, global = true)]
     verbose: bool,
+
+    /// Skip startup checks (CLI binary detection, auth verification).
+    #[arg(long, global = true)]
+    skip_checks: bool,
 }
 
 #[derive(Subcommand)]
@@ -97,6 +103,29 @@ fn setup_logging(verbose: bool) {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+
+    // Preflight runs before tracing init — interactive prompts use raw stderr
+    if !cli.skip_checks {
+        match startup::preflight() {
+            Ok(result) => {
+                eprintln!(
+                    "preflight ok: {} v{} (auth: {})",
+                    result.cli_path.display(),
+                    result.cli_version,
+                    if result.auth_verified {
+                        "verified"
+                    } else {
+                        "unverified"
+                    }
+                );
+            }
+            Err(e) => {
+                eprintln!("preflight failed: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
     setup_logging(cli.verbose);
 
     let root = cli.root.canonicalize().unwrap_or(cli.root.clone());

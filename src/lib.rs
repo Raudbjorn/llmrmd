@@ -13,6 +13,7 @@
 //! patterns, exact syntax). This separation avoids the "stuffed context" problem.
 
 pub mod api;
+pub mod cli;
 pub mod config;
 pub mod error;
 pub mod indexer;
