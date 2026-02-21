@@ -6,6 +6,7 @@
 //! - `diagrams/extracted/*.mmd` — extracted mermaid diagrams
 
 pub mod mermaid;
+pub mod repair;
 pub mod toon;
 pub mod types;
 
@@ -256,6 +257,11 @@ pub fn scan_repo(root: &Path) -> Result<IndexResult> {
                 posix_path.clone()
             };
 
+            // Repair pass: fix common syntax issues after minification
+            let repair_result = repair::repair(&minified);
+            repair::log_repair_results(&source, &repair_result);
+            let content = repair_result.content;
+
             let id = raw.id.unwrap_or_else(|| {
                 // Auto-generate ID from source path
                 source
@@ -268,9 +274,9 @@ pub fn scan_repo(root: &Path) -> Result<IndexResult> {
                 id,
                 source,
                 domain: domain.clone(),
-                diagram_type: mermaid::infer_type(&minified).to_string(),
-                tokens_est: mermaid::estimate_tokens(&minified),
-                content: minified,
+                diagram_type: mermaid::infer_type(&content).to_string(),
+                tokens_est: mermaid::estimate_tokens(&content),
+                content,
             });
         }
     }

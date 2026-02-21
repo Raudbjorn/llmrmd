@@ -45,6 +45,12 @@ pub enum Error {
 
     #[error("Plan validation failed: {0}")]
     PlanValidation(String),
+
+    #[error("Plugin '{plugin}' failed: {message}")]
+    Plugin {
+        plugin: String,
+        message: String,
+    },
 }
 
 /// Convenience alias used throughout the crate.
