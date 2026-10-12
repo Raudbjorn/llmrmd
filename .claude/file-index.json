@@ -1,0 +1,497 @@
+{
+  "claude_md_paths": [],
+  "files": [
+    {
+      "claude_md": "",
+      "domain": ".claude",
+      "file_type": "config",
+      "path": ".claude/boundaries.json",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": ".claude",
+      "file_type": "file",
+      "path": ".claude/boundaries.toon",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": ".claude",
+      "file_type": "config",
+      "path": ".claude/edges.json",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": ".claude",
+      "file_type": "file",
+      "path": ".claude/edges.toon",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": ".claude",
+      "file_type": "config",
+      "path": ".claude/file-index.json",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": ".claude",
+      "file_type": "file",
+      "path": ".claude/file-index.toon",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": ".claude",
+      "file_type": "file",
+      "path": ".claude/llmrmd.log",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": ".claude",
+      "file_type": "config",
+      "path": ".claude/manifest.json",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": ".claude",
+      "file_type": "file",
+      "path": ".claude/manifest.toon",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "root",
+      "file_type": "config",
+      "path": "Cargo.toml",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "root",
+      "file_type": "docs",
+      "path": "README.md",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "docs",
+      "file_type": "docs",
+      "path": "docs/DESIGN.md",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "docs",
+      "file_type": "docs",
+      "path": "docs/ROADMAP.md",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "docs",
+      "file_type": "module",
+      "path": "docs/python-poc/cli.py",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "docs",
+      "file_type": "module",
+      "path": "docs/python-poc/indexer.py",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "docs",
+      "file_type": "module",
+      "path": "docs/python-poc/planner.py",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "docs",
+      "file_type": "docs",
+      "path": "docs/research.md",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "docs",
+      "file_type": "docs",
+      "path": "docs/v6-context-compiler.md",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/agent/executor.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/agent/mod.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/api/client.rs",
+      "subdomain": "routes"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/api/mod.rs",
+      "subdomain": "routes"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/api/sanitize.rs",
+      "subdomain": "routes"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/api/tool_schema.rs",
+      "subdomain": "routes"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/api/types.rs",
+      "subdomain": "routes"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/api/validate.rs",
+      "subdomain": "routes"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/bin/llm_index.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/cli.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/config.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/editor_sync.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/error.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/git_graph.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/graphrag/index.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/graphrag/mod.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/graphrag/tfidf.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/hooks.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/indexer/boundary.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/indexer/description.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/indexer/edges.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/indexer/mermaid.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/indexer/mod.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/indexer/repair.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/indexer/toon.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/indexer/types.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/lib.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/main.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/planner/injection.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/planner/mod.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "file",
+      "path": "src/planner/planner_prompt.txt",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/planner/plans.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/planner/scope.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/planner/tags.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/planner/types.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/plugins/builtin.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/plugins/mod.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/plugins/registry.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/plugins/tiers.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/search.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/settings.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/startup.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/app.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/input.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/message.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/mod.rs",
+      "subdomain": "core"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/views/diagram.rs",
+      "subdomain": "components"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/views/handoff.rs",
+      "subdomain": "components"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/views/index.rs",
+      "subdomain": "components"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/views/mod.rs",
+      "subdomain": "components"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/views/plan.rs",
+      "subdomain": "components"
+    },
+    {
+      "claude_md": "",
+      "domain": "src",
+      "file_type": "module",
+      "path": "src/tui/widgets/mod.rs",
+      "subdomain": "components"
+    }
+  ],
+  "generated_at": "2026-02-21T00:22:25Z",
+  "root": "llmrmd"
+}

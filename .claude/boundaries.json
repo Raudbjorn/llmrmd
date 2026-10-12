@@ -1,0 +1,10 @@
+[
+  {
+    "domain": "root",
+    "boundary_type": "rust-crate",
+    "root_path": ".",
+    "sentinel_files": [
+      "Cargo.toml"
+    ]
+  }
+]
