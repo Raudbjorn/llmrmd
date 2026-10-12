@@ -1,10 +1,10 @@
-//! Unified error types for llmermaid.
+//! Unified error types for llmrmd.
 //!
 //! All errors are returned as values (Result<T, Error>), never panicked.
 
 use std::path::PathBuf;
 
-/// Central error type for llmermaid operations.
+/// Central error type for llmrmd operations.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("IO error at {path}: {source}")]
@@ -22,7 +22,7 @@ pub enum Error {
     #[error("Path does not exist or is not a directory: {0}")]
     InvalidRoot(PathBuf),
 
-    #[error("Index artifacts not found at {0}. Run `llmermaid index` first.")]
+    #[error("Index artifacts not found at {0}. Run `llmrmd index` first.")]
     NoIndex(PathBuf),
 
     #[error("No files found in {0}")]
@@ -90,7 +90,7 @@ mod tests {
         let err = Error::NoIndex(PathBuf::from("/repo/.claude"));
         let msg = err.to_string();
         assert!(msg.contains("/repo/.claude"));
-        assert!(msg.contains("llmermaid index"));
+        assert!(msg.contains("llmrmd index"));
     }
 
     #[test]

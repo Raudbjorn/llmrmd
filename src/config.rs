@@ -1,4 +1,4 @@
-//! Configuration constants for llmermaid.
+//! Configuration constants for llmrmd.
 //!
 //! Ported from the Python proof-of-concept with additions from v6 "Context Compiler".
 //! All constants are compile-time known; no runtime config loading needed.

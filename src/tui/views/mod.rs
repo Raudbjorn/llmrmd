@@ -70,7 +70,7 @@ fn render_tabs(frame: &mut Frame, area: Rect, app: &App) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
-                .title(" llmermaid "),
+                .title(" llmrmd "),
         )
         .select(selected)
         .style(Style::default().fg(Color::Gray))
@@ -128,6 +128,24 @@ fn render_status(frame: &mut Frame, area: Rect, app: &App) {
         String::new()
     };
 
+    // Context breadcrumb for Index view: show selected domain > file
+    let context_display = if matches!(app.current_view, View::Index) && !app.input_focused && !app.search_active {
+        let domain = app
+            .domains
+            .get(app.selected_domain)
+            .map(|d| d.as_str())
+            .unwrap_or("--");
+        let filtered = app.filtered_files();
+        let file = filtered
+            .get(app.selected_file)
+            .map(|f| f.path.as_str())
+            .unwrap_or("--");
+        let filter_mode = if app.show_all_files { " (all)" } else { "" };
+        format!(" {domain}{filter_mode} > {file} ")
+    } else {
+        String::new()
+    };
+
     let status = Line::from(vec![
         Span::styled(
             format!(" {mode_indicator} "),
@@ -144,6 +162,10 @@ fn render_status(frame: &mut Frame, area: Rect, app: &App) {
             } else {
                 Color::Cyan
             }),
+        ),
+        Span::styled(
+            &context_display,
+            Style::default().fg(Color::White),
         ),
         Span::raw(" "),
         Span::styled(&app.status_message, Style::default().fg(status_color)),
@@ -195,7 +217,7 @@ fn render_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
             vec![
                 ("j/k or Up/Down", "Navigate files"),
                 ("h/l or Left/Right", "Navigate domains"),
-                ("Tab", "Toggle all/filtered files"),
+                ("Tab", "Toggle: show all files / filter by domain"),
             ],
         ),
         View::Plan => (

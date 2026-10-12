@@ -1,4 +1,4 @@
-//! Interactive TUI for llmermaid.
+//! Interactive TUI for llmrmd.
 //!
 //! Provides a multi-panel interface for:
 //! - Browsing the file index by domain
@@ -24,6 +24,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use crossterm::event::{self, Event};
+use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -44,6 +45,10 @@ pub fn run(root: &Path) -> Result<()> {
     io::stdout()
         .execute(EnterAlternateScreen)
         .map_err(|e| Error::Terminal(e.to_string()))?;
+    // Enable bracketed paste so Ctrl+V / middle-click arrives as a single
+    // Event::Paste(String) instead of a burst of individual key events.
+    let _ = io::stdout().execute(EnableBracketedPaste);
+
 
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal =
@@ -56,6 +61,7 @@ pub fn run(root: &Path) -> Result<()> {
     let result = main_loop(&mut terminal, &mut app);
 
     // Restore terminal (always, even on error)
+    let _ = io::stdout().execute(DisableBracketedPaste);
     let _ = disable_raw_mode();
     let _ = io::stdout().execute(LeaveAlternateScreen);
 
@@ -77,12 +83,22 @@ fn main_loop(
         if event::poll(Duration::from_millis(100))
             .map_err(|e| Error::Terminal(e.to_string()))?
         {
-            if let Event::Key(key) = event::read().map_err(|e| Error::Terminal(e.to_string()))? {
-                if let Some(msg) = input::key_to_message(key, app) {
-                    if app.update(msg)? {
-                        break;
+            match event::read().map_err(|e| Error::Terminal(e.to_string()))? {
+                Event::Key(key) => {
+                    if let Some(msg) = input::key_to_message(key, app) {
+                        if app.update(msg)? {
+                            break;
+                        }
                     }
                 }
+                Event::Paste(text) => {
+                    if let Some(msg) = input::paste_to_message(&text, app) {
+                        if app.update(msg)? {
+                            break;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -142,6 +158,7 @@ fn handle_editor_request(
     // Leave alternate screen and disable raw mode so the editor gets
     // a normal terminal. Order matters: leave alt screen first so the
     // editor doesn't paint over our buffer.
+    let _ = io::stdout().execute(DisableBracketedPaste);
     io::stdout()
         .execute(LeaveAlternateScreen)
         .map_err(|e| Error::Terminal(e.to_string()))?;
@@ -161,6 +178,7 @@ fn handle_editor_request(
     io::stdout()
         .execute(EnterAlternateScreen)
         .map_err(|e| Error::Terminal(e.to_string()))?;
+    let _ = io::stdout().execute(EnableBracketedPaste);
 
     // Force a full redraw after returning from the editor. The terminal
     // buffer is stale because another process owned the screen.

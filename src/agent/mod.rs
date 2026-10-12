@@ -1,4 +1,4 @@
-//! Agent execution engine for llmermaid.
+//! Agent execution engine for llmrmd.
 //!
 //! Models the Plan-Verify-Execute workflow as a directed acyclic graph (DAG)
 //! of typed nodes with dependency edges. The [`ExecutionGraph`] defines the

@@ -2,7 +2,7 @@
 //!
 //! Spawns the `claude` binary for both streaming and non-streaming requests.
 //! Adapted from laude's CLI execution layer, using blocking I/O to match
-//! llmermaid's synchronous architecture.
+//! llmrmd's synchronous architecture.
 //!
 //! # Architecture
 //!

@@ -1,4 +1,4 @@
-//! llmermaid: Indexer + Planner + Interactive TUI for LLM-assisted monorepo development.
+//! llmrmd: Indexer + Planner + Interactive TUI for LLM-assisted monorepo development.
 //!
 //! # Architecture
 //!

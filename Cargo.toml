@@ -1,5 +1,5 @@
 [package]
-name = "llmermaid"
+name = "llmrmd"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
@@ -8,9 +8,10 @@ license = "MIT"
 authors = ["Sveinbjörn"]
 keywords = ["llm", "monorepo", "mermaid", "tui", "architecture"]
 categories = ["command-line-utilities", "development-tools"]
+default-run = "llmrmd"
 
 [[bin]]
-name = "llmermaid"
+name = "llmrmd"
 path = "src/main.rs"
 
 [dependencies]

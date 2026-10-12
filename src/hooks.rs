@@ -7,14 +7,14 @@ use crate::error::{self, Error, Result};
 
 /// The pre-commit hook script content.
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
-# llmermaid pre-commit hook: regenerate diagrams for changed files
-# Installed by `llmermaid init-hook`
+# llmrmd pre-commit hook: regenerate diagrams for changed files
+# Installed by `llmrmd init-hook`
 
 set -e
 
-# Check if llmermaid is available
-if ! command -v llmermaid >/dev/null 2>&1; then
-    echo "llmermaid not found in PATH — skipping diagram regeneration"
+# Check if llmrmd is available
+if ! command -v llmrmd >/dev/null 2>&1; then
+    echo "llmrmd not found in PATH — skipping diagram regeneration"
     exit 0
 fi
 
@@ -37,8 +37,8 @@ for f in $STAGED; do
 done
 
 if [ "$HAS_SOURCE" = "true" ]; then
-    echo "llmermaid: regenerating diagrams..."
-    llmermaid index --skip-checks 2>/dev/null || true
+    echo "llmrmd: regenerating diagrams..."
+    llmrmd index --skip-checks 2>/dev/null || true
 
     # Stage any updated diagram files
     if [ -d ".claude/diagrams" ]; then
@@ -49,7 +49,7 @@ fi
 
 /// Install the pre-commit hook into the repo's `.git/hooks/` directory.
 ///
-/// If a pre-commit hook already exists and contains "llmermaid", this is a
+/// If a pre-commit hook already exists and contains "llmrmd", this is a
 /// no-op (idempotent). If a *different* hook exists, the caller must pass
 /// `force = true` to overwrite it.
 pub fn install_pre_commit(root: &Path, force: bool) -> Result<()> {
@@ -69,8 +69,8 @@ pub fn install_pre_commit(root: &Path, force: bool) -> Result<()> {
         // Check if it's our hook — if so, nothing to do.
         let existing =
             std::fs::read_to_string(&hook_path).map_err(|e| error::io_err(&hook_path, e))?;
-        if existing.contains("llmermaid") {
-            info!("llmermaid pre-commit hook already installed");
+        if existing.contains("llmrmd") {
+            info!("llmrmd pre-commit hook already installed");
             return Ok(());
         }
         return Err(Error::Config(format!(
@@ -123,7 +123,7 @@ mod tests {
         assert!(hook.exists());
 
         let content = std::fs::read_to_string(&hook).unwrap();
-        assert!(content.contains("llmermaid"));
+        assert!(content.contains("llmrmd"));
         assert!(content.starts_with("#!/bin/sh"));
     }
 
@@ -165,7 +165,7 @@ mod tests {
         install_pre_commit(dir.path(), true).unwrap();
 
         let content = std::fs::read_to_string(&hook_path).unwrap();
-        assert!(content.contains("llmermaid"));
+        assert!(content.contains("llmrmd"));
     }
 
     #[cfg(unix)]

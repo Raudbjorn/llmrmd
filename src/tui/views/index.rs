@@ -40,37 +40,43 @@ fn render_domains(frame: &mut Frame, area: Rect, app: &App) {
                 .map(|b| format!(" [{}]", b.boundary_type.as_str()))
                 .unwrap_or_default();
 
-            let mut line = format!("{domain}{boundary_suffix}  ({file_count}");
+            let is_selected = i == app.selected_domain;
+            let marker = if is_selected { "▸ " } else { "  " };
+
+            let mut line = format!("{marker}{domain}{boundary_suffix}  ({file_count}");
             if diag_count > 0 {
                 line.push_str(&format!(", {diag_count} diag"));
             }
             line.push(')');
 
-            let style = if i == app.selected_domain {
+            let style = if is_selected {
                 Style::default()
                     .fg(Color::Cyan)
+                    .bg(Color::DarkGray)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::White)
+                Style::default().fg(Color::Gray)
             };
 
             ListItem::new(line).style(style)
         })
         .collect();
 
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title(format!(" Domains ({}) ", app.domains.len()))
-                .title_style(Style::default().fg(Color::Yellow)),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        );
+    // Highlight the domain panel border when not in "show all" mode
+    let border_style = if !app.show_all_files {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(border_style)
+            .title(format!(" Domains ({}) ", app.domains.len()))
+            .title_style(Style::default().fg(Color::Yellow)),
+    );
 
     frame.render_widget(list, area);
 }
@@ -125,7 +131,8 @@ fn render_files(frame: &mut Frame, area: Rect, app: &App) {
             };
 
             let is_selected = i == app.selected_file;
-            let path_str = format!("{type_icon} {}{subdomain}", file.path);
+            let marker = if is_selected { "▸ " } else { "  " };
+            let path_str = format!("{marker}{type_icon} {}{subdomain}", file.path);
 
             let spans = if has_search && !query_lower.is_empty() {
                 highlight_matches(&path_str, &query_lower, is_selected)
@@ -133,6 +140,7 @@ fn render_files(frame: &mut Frame, area: Rect, app: &App) {
                 let style = if is_selected {
                     Style::default()
                         .fg(Color::Cyan)
+                        .bg(Color::DarkGray)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::White)
@@ -144,13 +152,19 @@ fn render_files(frame: &mut Frame, area: Rect, app: &App) {
         })
         .collect();
 
-    let domain_label = if app.show_all_files {
-        "all".to_string()
+    let (domain_label, tab_hint) = if app.show_all_files {
+        (
+            "all domains".to_string(),
+            "Tab: filter by domain".to_string(),
+        )
     } else {
-        app.domains
+        let name = app
+            .domains
             .get(app.selected_domain)
             .cloned()
-            .unwrap_or_else(|| "none".to_string())
+            .unwrap_or_else(|| "none".to_string());
+        let hint = "Tab: show all".to_string();
+        (name, hint)
     };
 
     let count_label = if has_search {
@@ -159,21 +173,15 @@ fn render_files(frame: &mut Frame, area: Rect, app: &App) {
         format!("{}", filtered.len())
     };
 
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title(format!(
-                    " Files -- {domain_label} ({count_label}) [Tab:toggle] ",
-                ))
-                .title_style(Style::default().fg(Color::Yellow)),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        );
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(format!(
+                " Files [{domain_label}] ({count_label})  {tab_hint} ",
+            ))
+            .title_style(Style::default().fg(Color::Yellow)),
+    );
 
     frame.render_widget(list, area);
 }

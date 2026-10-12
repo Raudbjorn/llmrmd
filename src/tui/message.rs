@@ -87,6 +87,8 @@ pub enum Message {
     InputChar(char),
     /// Delete the last character from the change description.
     InputBackspace,
+    /// Paste text into the change description (bracketed paste).
+    InputPaste(String),
     /// Submit the text input (Enter while editing).
     InputSubmit,
     /// Focus edit mode on the description field (from plan view).
@@ -191,6 +193,8 @@ pub enum Message {
     SearchBackspace,
     /// Clear search and exit search mode.
     SearchClear,
+    /// Paste text into the search query (bracketed paste).
+    SearchPaste(String),
     /// Execute the search and exit search mode.
     SearchSubmit,
 

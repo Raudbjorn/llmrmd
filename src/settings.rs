@@ -1,8 +1,8 @@
-//! Runtime configuration loaded from `llmermaid.toml`.
+//! Runtime configuration loaded from `llmrmd.toml`.
 //!
 //! Configuration is loaded from (in priority order):
-//! 1. `<repo>/.llmermaid.toml` (project-level)
-//! 2. `~/.config/llmermaid/config.toml` (user-level)
+//! 1. `<repo>/.llmrmd.toml` (project-level)
+//! 2. `~/.config/llmrmd/config.toml` (user-level)
 //! 3. Built-in defaults
 
 use std::path::{Path, PathBuf};
@@ -152,7 +152,7 @@ impl Default for PlannerSettings {
 /// Load settings from config files.
 pub fn load_settings(root: &Path) -> Settings {
     // Try project-level config first
-    let project_config = root.join(".llmermaid.toml");
+    let project_config = root.join(".llmrmd.toml");
     if let Some(settings) = try_load(&project_config) {
         info!(path = %project_config.display(), "Loaded project config");
         return settings;
@@ -174,7 +174,7 @@ pub fn load_settings(root: &Path) -> Settings {
 fn dirs_path() -> Option<PathBuf> {
     std::env::var("HOME")
         .ok()
-        .map(|h| PathBuf::from(h).join(".config").join("llmermaid"))
+        .map(|h| PathBuf::from(h).join(".config").join("llmrmd"))
 }
 
 fn try_load(path: &Path) -> Option<Settings> {
@@ -346,7 +346,7 @@ accent = "#00ff88"
     fn load_settings_from_project_file() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
-            dir.path().join(".llmermaid.toml"),
+            dir.path().join(".llmrmd.toml"),
             "[planner]\ntoken_budget = 6000\n",
         )
         .unwrap();

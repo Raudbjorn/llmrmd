@@ -390,6 +390,14 @@ impl App {
                 self.change_description.pop();
             }
 
+            Message::InputPaste(text) => {
+                // Strip carriage returns for cross-platform paste, then
+                // collapse to a single line (the description field is
+                // single-line; use Ctrl+E for multi-line editing).
+                let cleaned = text.replace('\r', "").replace('\n', " ");
+                self.change_description.push_str(&cleaned);
+            }
+
             Message::InputSubmit => {
                 self.input_focused = false;
                 if let Err(e) = self.generate_plan() {
@@ -796,6 +804,12 @@ impl App {
 
             Message::SearchBackspace => {
                 self.search_query.pop();
+                self.update_search_results();
+            }
+
+            Message::SearchPaste(text) => {
+                let cleaned = text.replace('\r', "").replace('\n', " ");
+                self.search_query.push_str(&cleaned);
                 self.update_search_results();
             }
 

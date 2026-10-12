@@ -1,4 +1,4 @@
-//! LLM API integration for llmermaid.
+//! LLM API integration for llmrmd.
 //!
 //! This module provides the bridge between the planner's context assembly
 //! and an LLM backend. The core types (plan schema, sanitization, validation)

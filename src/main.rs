@@ -1,4 +1,4 @@
-//! CLI entry point for llmermaid.
+//! CLI entry point for llmrmd.
 //!
 //! Subcommands:
 //! - `index`  — scan repo, produce file index + diagram manifest
@@ -15,7 +15,7 @@ use tracing::{error, info};
 
 #[derive(Parser)]
 #[command(
-    name = "llmermaid",
+    name = "llmrmd",
     about = "Indexer + Planner + TUI for LLM-assisted monorepo development",
     version,
     after_help = "Run with no subcommand to launch the interactive TUI."
@@ -125,19 +125,42 @@ enum Command {
     },
 }
 
-fn setup_logging(verbose: bool) {
+/// Set up tracing.
+///
+/// `log_file`: when `Some`, redirect all tracing output to that file
+/// instead of stderr. Used by the TUI to prevent log output from
+/// corrupting the alternate screen.
+fn setup_logging(verbose: bool, log_file: Option<std::path::PathBuf>) {
     use tracing_subscriber::EnvFilter;
 
     let filter = if verbose {
-        EnvFilter::new("llmermaid=debug")
+        EnvFilter::new("llmrmd=debug")
     } else {
-        EnvFilter::new("llmermaid=info")
+        EnvFilter::new("llmrmd=info")
     };
 
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_target(false)
-        .init();
+    if let Some(path) = log_file {
+        // TUI mode: write logs to file, not stderr
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let file = std::fs::File::create(&path).unwrap_or_else(|_| {
+            // Fallback: /dev/null — never corrupt the TUI
+            std::fs::File::create("/dev/null").expect("cannot open /dev/null")
+        });
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .with_target(false)
+            .with_ansi(false)
+            .with_writer(file)
+            .init();
+    } else {
+        // CLI mode: stderr as usual
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .with_target(false)
+            .init();
+    }
 }
 
 fn main() -> ExitCode {
@@ -165,9 +188,17 @@ fn main() -> ExitCode {
         }
     }
 
-    setup_logging(cli.verbose);
-
     let root = cli.root.canonicalize().unwrap_or(cli.root.clone());
+
+    // TUI mode: redirect tracing to a log file so it doesn't corrupt
+    // the alternate screen. CLI subcommands log to stderr as usual.
+    let is_tui = cli.command.is_none();
+    let log_file = if is_tui {
+        Some(llmrmd::config::output_dir(&root).join("llmrmd.log"))
+    } else {
+        None
+    };
+    setup_logging(cli.verbose, log_file);
 
     if !root.is_dir() {
         error!(path = %root.display(), "Root path does not exist or is not a directory");
@@ -234,22 +265,22 @@ fn main() -> ExitCode {
     }
 }
 
-fn run_index(root: &std::path::Path, dry_run: bool) -> llmermaid::error::Result<()> {
+fn run_index(root: &std::path::Path, dry_run: bool) -> llmrmd::error::Result<()> {
     info!(root = %root.display(), "Starting index");
 
-    let result = llmermaid::indexer::scan_repo(root)?;
+    let result = llmrmd::indexer::scan_repo(root)?;
 
     if result.files.is_empty() {
         info!("No files found — nothing to index.");
         return Ok(());
     }
 
-    llmermaid::indexer::write_index(&result, dry_run)?;
+    llmrmd::indexer::write_index(&result, dry_run)?;
     Ok(())
 }
 
-fn run_init_hook(root: &std::path::Path, force: bool) -> llmermaid::error::Result<()> {
-    llmermaid::hooks::install_pre_commit(root, force)?;
+fn run_init_hook(root: &std::path::Path, force: bool) -> llmrmd::error::Result<()> {
+    llmrmd::hooks::install_pre_commit(root, force)?;
     println!("Pre-commit hook installed.");
     Ok(())
 }
@@ -258,8 +289,8 @@ fn run_sync_editor(
     root: &std::path::Path,
     target: &str,
     scopes: Option<String>,
-) -> llmermaid::error::Result<()> {
-    let editor_target = llmermaid::editor_sync::EditorTarget::parse(target);
+) -> llmrmd::error::Result<()> {
+    let editor_target = llmrmd::editor_sync::EditorTarget::parse(target);
     let scope_list: Option<Vec<String>> = scopes.map(|s| {
         s.split(',')
             .map(|scope| scope.trim().to_string())
@@ -267,7 +298,7 @@ fn run_sync_editor(
             .collect()
     });
 
-    llmermaid::editor_sync::sync(root, &editor_target, scope_list.as_deref())?;
+    llmrmd::editor_sync::sync(root, &editor_target, scope_list.as_deref())?;
     println!("Editor context synced to {}", editor_target.filename());
     Ok(())
 }
@@ -276,8 +307,8 @@ fn run_git_graph(
     root: &std::path::Path,
     limit: usize,
     output: Option<String>,
-) -> llmermaid::error::Result<()> {
-    llmermaid::git_graph::write_git_graph(root, limit, output.as_deref())?;
+) -> llmrmd::error::Result<()> {
+    llmrmd::git_graph::write_git_graph(root, limit, output.as_deref())?;
     Ok(())
 }
 
@@ -285,9 +316,9 @@ fn run_search(
     root: &std::path::Path,
     query: &str,
     limit: usize,
-) -> llmermaid::error::Result<()> {
-    let results = llmermaid::search::search_index(root, query, limit)?;
-    print!("{}", llmermaid::search::format_results(&results));
+) -> llmrmd::error::Result<()> {
+    let results = llmrmd::search::search_index(root, query, limit)?;
+    print!("{}", llmrmd::search::format_results(&results));
     Ok(())
 }
 
@@ -300,7 +331,7 @@ fn run_plan(
     to_stdout: bool,
     call_api: bool,
     model: Option<String>,
-) -> llmermaid::error::Result<()> {
+) -> llmrmd::error::Result<()> {
     // Get change description from arg or stdin
     let change_desc = match change {
         Some(c) if !c.is_empty() => c,
@@ -309,25 +340,25 @@ fn run_plan(
             if std::io::stdin().is_terminal() {
                 error!(
                     "No change description provided.\n\
-                     Usage: llmermaid plan 'Add a locations table'\n\
-                     Or:    echo 'Add auth middleware' | llmermaid plan"
+                     Usage: llmrmd plan 'Add a locations table'\n\
+                     Or:    echo 'Add auth middleware' | llmrmd plan"
                 );
-                return Err(llmermaid::error::Error::EmptyDescription);
+                return Err(llmrmd::error::Error::EmptyDescription);
             }
             let mut buf = String::new();
             std::io::stdin()
                 .read_to_string(&mut buf)
-                .map_err(|e| llmermaid::error::Error::Terminal(e.to_string()))?;
+                .map_err(|e| llmrmd::error::Error::Terminal(e.to_string()))?;
             buf.trim().to_string()
         }
     };
 
     if change_desc.is_empty() {
-        return Err(llmermaid::error::Error::EmptyDescription);
+        return Err(llmrmd::error::Error::EmptyDescription);
     }
 
-    let manifest = llmermaid::planner::load_manifest(root)?;
-    let files = llmermaid::planner::load_file_index(root)?;
+    let manifest = llmrmd::planner::load_manifest(root)?;
+    let files = llmrmd::planner::load_file_index(root)?;
 
     let explicit_scopes: Option<Vec<String>> = scopes.map(|s| {
         s.split(',')
@@ -336,7 +367,7 @@ fn run_plan(
             .collect()
     });
 
-    let ctx = llmermaid::planner::select_context_with_scopes(
+    let ctx = llmrmd::planner::select_context_with_scopes(
         root,
         &change_desc,
         &manifest,
@@ -350,7 +381,7 @@ fn run_plan(
     }
 
     if to_stdout {
-        let prompt = llmermaid::planner::render_planning_prompt(&ctx);
+        let prompt = llmrmd::planner::render_planning_prompt(&ctx);
         print!("{prompt}");
         info!(
             scopes = ctx.relevant_scopes.len(),
@@ -359,7 +390,7 @@ fn run_plan(
             "Planning context generated"
         );
     } else {
-        llmermaid::planner::write_planning_context(root, &ctx)?;
+        llmrmd::planner::write_planning_context(root, &ctx)?;
     }
 
     Ok(())
@@ -368,12 +399,12 @@ fn run_plan(
 #[cfg(feature = "api")]
 fn run_plan_with_api(
     root: &std::path::Path,
-    ctx: &llmermaid::planner::types::PlannerContext,
-    files: &[llmermaid::indexer::types::FileRecord],
-    manifest: &[llmermaid::planner::types::ManifestEntry],
+    ctx: &llmrmd::planner::types::PlannerContext,
+    files: &[llmrmd::indexer::types::FileRecord],
+    manifest: &[llmrmd::planner::types::ManifestEntry],
     model: Option<&str>,
-) -> llmermaid::error::Result<()> {
-    use llmermaid::api;
+) -> llmrmd::error::Result<()> {
+    use llmrmd::api;
     use tracing::warn;
 
     let client = api::client::AnthropicClient::from_env()?;
@@ -394,7 +425,7 @@ fn run_plan_with_api(
                 errors = ?validation.errors,
                 "Plan variant has validation errors"
             );
-            return Err(llmermaid::error::Error::PlanValidation(
+            return Err(llmrmd::error::Error::PlanValidation(
                 validation.errors.join("; "),
             ));
         }
@@ -405,7 +436,7 @@ fn run_plan_with_api(
     }
 
     // Save the plan
-    let slug = llmermaid::planner::plans::save_plan(
+    let slug = llmrmd::planner::plans::save_plan(
         root,
         ctx,
         &plan_response,
@@ -415,8 +446,8 @@ fn run_plan_with_api(
     )?;
 
     // Print brief
-    let persisted = llmermaid::planner::plans::load_plan(root, &slug)?;
-    println!("{}", llmermaid::planner::plans::render_brief(&persisted));
+    let persisted = llmrmd::planner::plans::load_plan(root, &slug)?;
+    println!("{}", llmrmd::planner::plans::render_brief(&persisted));
 
     Ok(())
 }
@@ -424,43 +455,43 @@ fn run_plan_with_api(
 #[cfg(not(feature = "api"))]
 fn run_plan_with_api(
     _root: &std::path::Path,
-    _ctx: &llmermaid::planner::types::PlannerContext,
-    _files: &[llmermaid::indexer::types::FileRecord],
-    _manifest: &[llmermaid::planner::types::ManifestEntry],
+    _ctx: &llmrmd::planner::types::PlannerContext,
+    _files: &[llmrmd::indexer::types::FileRecord],
+    _manifest: &[llmrmd::planner::types::ManifestEntry],
     _model: Option<&str>,
-) -> llmermaid::error::Result<()> {
-    Err(llmermaid::error::Error::Config(
+) -> llmrmd::error::Result<()> {
+    Err(llmrmd::error::Error::Config(
         "API support not compiled. Rebuild with: cargo build --features api".to_string(),
     ))
 }
 
-fn run_list_plans(root: &std::path::Path) -> llmermaid::error::Result<()> {
-    let plans = llmermaid::planner::plans::list_plans(root)?;
+fn run_list_plans(root: &std::path::Path) -> llmrmd::error::Result<()> {
+    let plans = llmrmd::planner::plans::list_plans(root)?;
     if plans.is_empty() {
-        println!("No plans found. Run `llmermaid plan --call-api 'your change'` to create one.");
+        println!("No plans found. Run `llmrmd plan --call-api 'your change'` to create one.");
         return Ok(());
     }
 
     println!("Plans ({}):\n", plans.len());
     for plan in &plans {
-        println!("{}", llmermaid::planner::plans::render_brief(plan));
+        println!("{}", llmrmd::planner::plans::render_brief(plan));
         println!();
     }
     Ok(())
 }
 
-fn run_approve_plan(root: &std::path::Path, slug: &str) -> llmermaid::error::Result<()> {
-    llmermaid::planner::plans::approve_plan(root, slug)?;
+fn run_approve_plan(root: &std::path::Path, slug: &str) -> llmrmd::error::Result<()> {
+    llmrmd::planner::plans::approve_plan(root, slug)?;
     println!("Plan '{slug}' approved.");
     Ok(())
 }
 
-fn run_show_plan(root: &std::path::Path, slug: &str) -> llmermaid::error::Result<()> {
-    let plan = llmermaid::planner::plans::load_plan(root, slug)?;
-    println!("{}", llmermaid::planner::plans::render_brief(&plan));
+fn run_show_plan(root: &std::path::Path, slug: &str) -> llmrmd::error::Result<()> {
+    let plan = llmrmd::planner::plans::load_plan(root, slug)?;
+    println!("{}", llmrmd::planner::plans::render_brief(&plan));
     Ok(())
 }
 
-fn run_tui(root: &std::path::Path) -> llmermaid::error::Result<()> {
-    llmermaid::tui::run(root)
+fn run_tui(root: &std::path::Path) -> llmrmd::error::Result<()> {
+    llmrmd::tui::run(root)
 }

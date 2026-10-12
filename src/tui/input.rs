@@ -108,6 +108,19 @@ pub fn key_to_message(key: KeyEvent, app: &App) -> Option<Message> {
     }
 }
 
+/// Map a bracketed paste event to a message.
+///
+/// Only active when a text input mode is focused; otherwise paste is ignored.
+pub fn paste_to_message(text: &str, app: &App) -> Option<Message> {
+    if app.input_focused {
+        Some(Message::InputPaste(text.to_owned()))
+    } else if app.search_active {
+        Some(Message::SearchPaste(text.to_owned()))
+    } else {
+        None
+    }
+}
+
 /// Map index view keys to messages.
 fn index_key_to_message(key: KeyEvent) -> Option<Message> {
     match key.code {
